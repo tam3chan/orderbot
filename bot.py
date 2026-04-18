@@ -2,6 +2,7 @@
 import os, sys, logging, io, functools
 from datetime import date, timedelta
 from dotenv import load_dotenv
+import r2
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest
 from telegram.ext import (Application, CommandHandler, CallbackQueryHandler,
@@ -19,6 +20,23 @@ if not TOKEN:
 EXCEL_PATH = os.environ.get("EXCEL_PATH", "DAILY_ORDER_MIN_xlsx.xlsx")
 _raw = os.environ.get("ALLOWED_USER_IDS", "")
 ALLOWED_USER_IDS: set[int] = {int(x.strip()) for x in _raw.split(",") if x.strip()}
+
+# ─── Excel buffer: tải từ R2 hoặc đọc từ local ──────────────────────────
+EXCEL_BUFFER: io.BytesIO | None = None
+
+def _init_excel_buffer() -> None:
+    global EXCEL_BUFFER
+    if os.environ.get("R2_ENDPOINT") and os.environ.get("R2_ACCESS_KEY"):
+        EXCEL_BUFFER = r2.download_excel()
+    else:
+        logger.info("R2 not configured, using local Excel file: %s", EXCEL_PATH)
+
+def _get_wb(read_only: bool = False, data_only: bool = False):
+    """Trả về Workbook từ buffer R2 hoặc file local."""
+    if EXCEL_BUFFER is not None:
+        EXCEL_BUFFER.seek(0)
+        return load_workbook(EXCEL_BUFFER, read_only=read_only, data_only=data_only)
+    return load_workbook(EXCEL_PATH, read_only=read_only, data_only=data_only)
 
 class _Src:
     CAT=1; SUB=2; CODE=3; NAME=4; NCC=9; UNIT=20
@@ -54,10 +72,10 @@ def date_label(d: date) -> str:
     return f"{fmt_date(d)}{suf}"
 
 def load_food_items() -> dict:
-    if not os.path.exists(EXCEL_PATH):
+    if EXCEL_BUFFER is None and not os.path.exists(EXCEL_PATH):
         logger.critical("Excel not found: %s", EXCEL_PATH); sys.exit(1)
     try:
-        wb = load_workbook(EXCEL_PATH, read_only=True, data_only=True)
+        wb = _get_wb(read_only=True, data_only=True)
     except Exception as e:
         logger.critical("Cannot open Excel: %s", e); sys.exit(1)
     if SHEET_SRC not in wb.sheetnames:
@@ -80,12 +98,13 @@ def get_cats(items: dict) -> dict:
     for v in items.values(): cats.setdefault(v["cat"], []).append(v)
     return cats
 
+_init_excel_buffer()  # tải Excel từ R2 trước khi load items
 ITEMS = load_food_items()
 CATS = get_cats(ITEMS)
 
 def build_order_excel(order_items: list, order_date: date | None = None) -> io.BytesIO:
     if order_date is None: order_date = date.today()
-    wb = load_workbook(EXCEL_PATH)
+    wb = _get_wb()  # fresh copy từ buffer
     if SHEET_OUT not in wb.sheetnames: raise ValueError(f"Sheet '{SHEET_OUT}' not found")
     ws = wb[SHEET_OUT]
     ws.cell(row=_Out.DATE_ROW, column=_Out.DATE_COL, value=order_date)
@@ -466,13 +485,32 @@ async def cancel(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 @authorized_only
 async def start(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     ctx.user_data.clear()
+
+    # ─── R2 status ───────────────────────────────────────────────
+    if EXCEL_BUFFER is not None:
+        size_kb = round(EXCEL_BUFFER.getbuffer().nbytes / 1024)
+        r2_status = f"✅ Đã kết nối ({size_kb} KB, {len(ITEMS)} mặt hàng)"
+    else:
+        r2_status = "⚠️ Không dùng R2 (đọc local)"
+
+    # ─── MongoDB status ──────────────────────────────────────────
+    try:
+        db._get_db().command("ping")
+        mongo_status = "✅ Đã kết nối"
+    except Exception:
+        mongo_status = "❌ Không kết nối được"
+
     await update.message.reply_text(
         "👋 Xin chào! Tôi là *Order Bot* 🤖\n\n"
+        "🔗 *Trạng thái kết nối:*\n"
+        f"  • R2 Storage: {r2_status}\n"
+        f"  • MongoDB: {mongo_status}\n\n"
         "📋 *Lệnh có sẵn:*\n"
         "/order — Tạo đơn đặt hàng\n"
         "/list — Xem danh sách mặt hàng\n"
         "/tim <từ khoá> — Tìm kiếm\n"
         "/cancel — Huỷ", parse_mode="Markdown")
+
 
 @authorized_only
 async def cmd_list(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
