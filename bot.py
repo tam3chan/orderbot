@@ -6,7 +6,7 @@ import sys
 import logging
 import io
 import functools
-from datetime import date
+from datetime import date, timedelta
 from dotenv import load_dotenv
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.error import BadRequest
@@ -62,7 +62,7 @@ SHEET_SOURCE = "Food T01"
 SHEET_OUTPUT = "PR NOODLE"
 
 # ─── STATES ─────────────────────────────────────────────────────────────
-CHOOSING_CAT, CHOOSING_ITEM, ENTERING_QTY, CONFIRM_ORDER = range(4)
+CHOOSING_CAT, CHOOSING_ITEM, ENTERING_QTY, CONFIRM_ORDER, ENTERING_DATE = range(5)
 
 # ─── AUTHORIZATION DECORATOR ────────────────────────────────────────────
 def authorized_only(func):
@@ -83,6 +83,17 @@ def authorized_only(func):
 def fmt_qty(qty: float) -> str:
     """Hiển thị số lượng: bỏ .0 nếu là số nguyên (2.0 → '2', 2.5 → '2.5')."""
     return str(int(qty)) if qty == int(qty) else str(qty)
+
+def fmt_date(d: date) -> str:
+    """Định dạng ngày hiển thị: DD/MM/YYYY."""
+    return d.strftime("%d/%m/%Y")
+
+def date_label(d: date) -> str:
+    """Trả về nhãn ngày kèm ghi chú hôm qua/hôm nay/ngày mai."""
+    today = date.today()
+    delta = (d - today).days
+    suffix = {-1: " (hôm qua)", 0: " (hôm nay)", 1: " (ngày mai)"}.get(delta, "")
+    return f"{fmt_date(d)}{suffix}"
 
 # ─── LOAD ITEMS ─────────────────────────────────────────────────────────
 def load_food_items() -> dict[str, dict]:
@@ -343,6 +354,24 @@ async def back_to_cat(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     return await show_categories(update, ctx)
 
 
+def _confirm_text_and_markup(order: dict, order_date: date) -> tuple[str, InlineKeyboardMarkup]:
+    """Tạo nội dung và keyboard cho màn xác nhận đơn hàng."""
+    lines = ["📋 *Xác nhận đơn đặt hàng:*\n"]
+    for v in order.values():
+        lines.append(f"  • {v['name']}: *{fmt_qty(v['qty'])} {v['unit']}*")
+    lines.append(f"\n📅 *Ngày đặt hàng:* {date_label(order_date)}")
+    lines.append(f"_Tổng: {len(order)} mặt hàng_")
+
+    btns = [
+        [
+            InlineKeyboardButton("✅ Tạo file Excel", callback_data="confirm_yes"),
+            InlineKeyboardButton("📅 Đổi ngày",       callback_data="change_date"),
+        ],
+        [InlineKeyboardButton("❌ Huỷ", callback_data="confirm_no")],
+    ]
+    return "\n".join(lines), InlineKeyboardMarkup(btns)
+
+
 async def done_order(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
@@ -352,20 +381,86 @@ async def done_order(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
         await query.message.reply_text("🛒 Đơn hàng trống! Thêm mặt hàng trước.")
         return CHOOSING_CAT
 
-    lines = ["📋 *Xác nhận đơn đặt hàng:*\n"]
-    for v in order.values():
-        lines.append(f"  • {v['name']}: *{fmt_qty(v['qty'])} {v['unit']}*")
-    lines.append(f"\n_Tổng: {len(order)} mặt hàng_")
+    # Dùng ngày đã chọn trước đó hoặc mặc định hôm nay
+    order_date = ctx.user_data.get("order_date", date.today())
+    ctx.user_data["order_date"] = order_date
 
-    btns = [[
-        InlineKeyboardButton("✅ Tạo file Excel", callback_data="confirm_yes"),
-        InlineKeyboardButton("❌ Huỷ",            callback_data="confirm_no"),
-    ]]
-    await query.message.reply_text(
-        "\n".join(lines),
+    text, markup = _confirm_text_and_markup(order, order_date)
+    await query.message.reply_text(text, reply_markup=markup, parse_mode="Markdown")
+    return CONFIRM_ORDER
+
+
+async def change_date(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Hiển thị nút chọn nhanh ngày: hôm qua / hôm nay / ngày mai / nhập tay."""
+    query = update.callback_query
+    await query.answer()
+
+    today = date.today()
+    yesterday  = today - timedelta(days=1)
+    tomorrow   = today + timedelta(days=1)
+
+    btns = [
+        [InlineKeyboardButton(f"⬅️ {fmt_date(yesterday)} (hôm qua)", callback_data=f"qdate:{yesterday.isoformat()}")],
+        [InlineKeyboardButton(f"📅 {fmt_date(today)} (hôm nay)",     callback_data=f"qdate:{today.isoformat()}")],
+        [InlineKeyboardButton(f"➡️ {fmt_date(tomorrow)} (ngày mai)", callback_data=f"qdate:{tomorrow.isoformat()}")],
+        [InlineKeyboardButton("✏️ Nhập ngày khác (DD/MM/YYYY)",      callback_data="qdate:custom")],
+        [InlineKeyboardButton("↩️ Quay lại",                          callback_data="qdate:back")],
+    ]
+    await query.message.edit_text(
+        "📅 *Chọn ngày đặt hàng:*",
         reply_markup=InlineKeyboardMarkup(btns),
         parse_mode="Markdown",
     )
+    return CONFIRM_ORDER
+
+
+async def quick_date(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Xử lý chọn ngày nhanh hoặc chuyển sang nhập tay."""
+    query = update.callback_query
+    await query.answer()
+    value = query.data.replace("qdate:", "")
+
+    if value == "back":
+        # Quay lại màn xác nhận
+        order = ctx.user_data.get("order", {})
+        order_date = ctx.user_data.get("order_date", date.today())
+        text, markup = _confirm_text_and_markup(order, order_date)
+        await query.message.edit_text(text, reply_markup=markup, parse_mode="Markdown")
+        return CONFIRM_ORDER
+
+    if value == "custom":
+        await query.message.edit_text(
+            "✏️ Nhập ngày theo định dạng *DD/MM/YYYY*\nVD: `25/12/2025`",
+            parse_mode="Markdown",
+        )
+        return ENTERING_DATE
+
+    # Chọn ngày cụ thể (ISO format YYYY-MM-DD)
+    chosen = date.fromisoformat(value)
+    ctx.user_data["order_date"] = chosen
+
+    order = ctx.user_data.get("order", {})
+    text, markup = _confirm_text_and_markup(order, chosen)
+    await query.message.edit_text(text, reply_markup=markup, parse_mode="Markdown")
+    return CONFIRM_ORDER
+
+
+async def enter_custom_date(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
+    """Nhận ngày nhập tay theo định dạng DD/MM/YYYY."""
+    raw = update.message.text.strip()
+    try:
+        chosen = date(int(raw[6:10]), int(raw[3:5]), int(raw[0:2]))
+    except Exception:
+        await update.message.reply_text(
+            "⚠️ Định dạng không đúng. Vui lòng nhập lại theo dạng *DD/MM/YYYY*\nVD: `25/12/2025`",
+            parse_mode="Markdown",
+        )
+        return ENTERING_DATE
+
+    ctx.user_data["order_date"] = chosen
+    order = ctx.user_data.get("order", {})
+    text, markup = _confirm_text_and_markup(order, chosen)
+    await update.message.reply_text(text, reply_markup=markup, parse_mode="Markdown")
     return CONFIRM_ORDER
 
 
@@ -375,16 +470,16 @@ async def confirm_yes(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 
     order = ctx.user_data.get("order", {})
     items_list = list(order.values())
+    order_date = ctx.user_data.get("order_date", date.today())  # dùng ngày đã chọn
 
     try:
-        buf = build_order_excel(items_list)
-        today = date.today()
-        filename = f"DonDatHang_{today.strftime('%d%m%Y')}.xlsx"
+        buf = build_order_excel(items_list, order_date)
+        filename = f"DonDatHang_{order_date.strftime('%d%m%Y')}.xlsx"
         await query.message.reply_document(
             document=buf,
             filename=filename,
             caption=(
-                f"✅ *File đặt hàng ngày {today.strftime('%d/%m/%Y')}*\n"
+                f"✅ *File đặt hàng ngày {fmt_date(order_date)}*\n"
                 f"📦 {len(items_list)} mặt hàng\n\n"
                 f"_Gửi file này cho nhà cung cấp!_"
             ),
@@ -448,8 +543,13 @@ def main():
                 MessageHandler(filters.TEXT & ~filters.COMMAND, receive_qty)
             ],
             CONFIRM_ORDER: [
-                CallbackQueryHandler(confirm_yes, pattern="^confirm_yes$"),
-                CallbackQueryHandler(confirm_no,  pattern="^confirm_no$"),
+                CallbackQueryHandler(confirm_yes,  pattern="^confirm_yes$"),
+                CallbackQueryHandler(confirm_no,   pattern="^confirm_no$"),
+                CallbackQueryHandler(change_date,  pattern="^change_date$"),
+                CallbackQueryHandler(quick_date,   pattern="^qdate:"),
+            ],
+            ENTERING_DATE: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, enter_custom_date)
             ],
         },
         fallbacks=[CommandHandler("cancel", cancel)],
