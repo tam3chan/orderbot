@@ -1,73 +1,113 @@
-# 🤖 Order Bot - Telegram Bot Đặt Hàng
+# Order Bot - Telegram Bot Dat Hang
 
-Bot Telegram giúp tạo file Excel đặt hàng thực phẩm từ danh sách nhà cung cấp.
+Telegram bot giup tao file Excel dat hang thuc pham tu danh sach nha cung cap.
 
-## 🚀 Cách chạy (3 bước)
+## Project Structure
 
-### Bước 1: Upload file Excel lên cùng thư mục với bot.py
-- `DAILY_ORDER_MIN_xlsx.xlsx` (file danh sách mặt hàng của bạn)
+```
+order_bot/
+├── bot.py              # Main bot (ConversationHandler, 12 states)
+├── db.py               # MongoDB data access layer
+├── r2.py               # Cloudflare R2 storage client
+├── requirements.txt     # Python dependencies
+├── Dockerfile          # Container configuration
+├── .env.example        # Environment template
+├── docs/               # Documentation
+└── tests/              # Test directory
+```
 
-### Bước 2: Deploy lên Railway (miễn phí)
+## Tech Stack
 
-1. Tạo tài khoản tại https://railway.app (đăng nhập bằng GitHub)
-2. Tạo GitHub repo mới, upload toàn bộ thư mục này lên
-3. Vào Railway → New Project → Deploy from GitHub repo
-4. Trong Settings → Variables, thêm:
-   - `BOT_TOKEN` = token lấy từ [@BotFather](https://t.me/BotFather)
-   - `ALLOWED_USER_IDS` = danh sách Telegram User ID được phép dùng bot (phân cách bằng dấu phẩy, VD: `123456789,987654321`)
-   - `EXCEL_PATH` = tên file Excel (mặc định: `DAILY_ORDER_MIN_xlsx.xlsx`)
-5. Deploy!
+- **Language**: Python 3.11
+- **Bot Framework**: python-telegram-bot >=21.0
+- **Database**: MongoDB Atlas (orders, templates collections)
+- **Storage**: Cloudflare R2 (Excel template storage)
+- **Excel Processing**: openpyxl 3.1.2
+- **Deployment**: Railway, Docker
 
-> 💡 Lấy Telegram User ID của bạn: nhắn tin cho [@userinfobot](https://t.me/userinfobot)
+## Quick Start
 
-### Bước 3: Dùng thôi!
+### 1. Prepare Excel File
 
-Mở Telegram, tìm bot của bạn và gõ `/start`
+Upload file `DAILY_ORDER_MIN_xlsx.xlsx` cung thu muc voi bot.py. File can co sheet "Food T01" voi cac cot:
+- Code (A), Name (E), Category (B), Unit (U), NCC (J)
 
----
-
-## 📱 Lệnh bot
-
-| Lệnh | Mô tả |
-|------|-------|
-| `/start` | Bắt đầu |
-| `/order` | Tạo đơn đặt hàng mới |
-| `/list` | Xem danh sách mặt hàng |
-| `/tim <từ khoá>` | Tìm kiếm mặt hàng |
-| `/cancel` | Huỷ đơn đang làm |
-
----
-
-## 🔄 Cách dùng /order
-
-1. Gõ `/order`
-2. Chọn nhóm hàng (THỊT / RAU CỦ QUẢ / ...)
-3. Chọn mặt hàng muốn đặt
-4. Nhập số lượng
-5. Tiếp tục chọn mặt hàng khác
-6. Bấm **"Xong – Tạo file đặt hàng"**
-7. Bot gửi file Excel về!
-
----
-
-## 🛠️ Chạy local (để test)
+### 2. Configure Environment
 
 ```bash
-# Tạo file .env từ template
 cp .env.example .env
-# Điền BOT_TOKEN và các biến khác vào .env
+# Edit .env with your values:
+BOT_TOKEN=<from @BotFather>
+ALLOWED_USER_IDS=<Telegram user IDs, comma-separated>
+MONGODB_URI=<MongoDB Atlas connection string>
+R2_ENDPOINT=<Cloudflare R2 endpoint>
+R2_ACCESS_KEY=<R2 access key>
+R2_SECRET_KEY=<R2 secret key>
+```
 
+### 3. Run Local
+
+```bash
 pip install -r requirements.txt
 python bot.py
 ```
 
-## 📝 Cập nhật danh sách mặt hàng
+### 4. Deploy to Railway
 
-Chỉ cần thay file `DAILY_ORDER_MIN_xlsx.xlsx` bằng file mới và restart bot.
+1. Create GitHub repo, push code
+2. Connect repo to Railway
+3. Add environment variables in Railway dashboard
+4. Deploy
 
----
+## Bot Commands
 
-## 🔒 Bảo mật
+| Command | Description |
+|---------|-------------|
+| `/start` | Khoi dong bot, hien thi trang thai ket noi |
+| `/order` | Tao don dat hang moi |
+| `/list` | Xem danh sach mat hang |
+| `/tim <tu khoa>` | Tim kiem mat hang |
+| `/cancel` | Huy don dang lam |
 
-- **Không bao giờ** commit token vào git. Token chỉ được đặt qua biến môi trường.
-- Dùng `ALLOWED_USER_IDS` để giới hạn ai được phép sử dụng bot.
+## Order Flow
+
+1. Goi `/order`
+2. Chon nhom hang (THIT / RAU CỦ QUẢ / ...)
+3. Chon mat hang
+4. Nhap so luong
+5. Tiep tuc hoac bam "Xong - Xac nhan"
+6. Chon ngay dat hang
+7. Nhan file Excel
+
+## Key Features
+
+- **Multi-step Conversation**: 12-state ConversationHandler for complex ordering flow
+- **Recent Orders**: Tai don gan nhat tu MongoDB
+- **Saved Templates**: Luu va tai mau don thuong dung
+- **History Search**: Tim kiem don theo ngay
+- **R2 Integration**: Tai Excel template vao RAM luc khoi dong
+- **User Whitelist**: Gioi han truy cap qua ALLOWED_USER_IDS
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `BOT_TOKEN` | Yes | Telegram bot token from @BotFather |
+| `ALLOWED_USER_IDS` | No | Comma-separated Telegram user IDs |
+| `MONGODB_URI` | Yes | MongoDB Atlas connection string |
+| `R2_ENDPOINT` | No | Cloudflare R2 endpoint URL |
+| `R2_ACCESS_KEY` | No | R2 access key |
+| `R2_SECRET_KEY` | No | R2 secret key |
+| `R2_BUCKET` | No | R2 bucket name (default: orderbot) |
+| `R2_OBJECT_KEY` | No | Excel file key in R2 |
+| `EXCEL_PATH` | No | Local Excel path (default: DAILY_ORDER_MIN_xlsx.xlsx) |
+
+## Security
+
+- **Never commit tokens**: All tokens via environment variables
+- **User whitelist**: ALLOWED_USER_IDS restricts bot access
+- **No sensitive logging**: Credentials not logged
+
+## License
+
+MIT

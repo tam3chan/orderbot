@@ -4,4 +4,8 @@ __pycache__/
 .env
 *.xlsx
 .DS_Store
-tests
+.planning
+.claude
+docs
+plans
+CLAUDE.md
