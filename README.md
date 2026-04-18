@@ -13,8 +13,12 @@ Bot Telegram giúp tạo file Excel đặt hàng thực phẩm từ danh sách n
 2. Tạo GitHub repo mới, upload toàn bộ thư mục này lên
 3. Vào Railway → New Project → Deploy from GitHub repo
 4. Trong Settings → Variables, thêm:
-   - `BOT_TOKEN` = `8772576507:AAEcB0YAqSGSRxNqtJ5UTQCkGnLh8YX72Fk`
+   - `BOT_TOKEN` = token lấy từ [@BotFather](https://t.me/BotFather)
+   - `ALLOWED_USER_IDS` = danh sách Telegram User ID được phép dùng bot (phân cách bằng dấu phẩy, VD: `123456789,987654321`)
+   - `EXCEL_PATH` = tên file Excel (mặc định: `DAILY_ORDER_MIN_xlsx.xlsx`)
 5. Deploy!
+
+> 💡 Lấy Telegram User ID của bạn: nhắn tin cho [@userinfobot](https://t.me/userinfobot)
 
 ### Bước 3: Dùng thôi!
 
@@ -49,11 +53,21 @@ Mở Telegram, tìm bot của bạn và gõ `/start`
 ## 🛠️ Chạy local (để test)
 
 ```bash
+# Tạo file .env từ template
+cp .env.example .env
+# Điền BOT_TOKEN và các biến khác vào .env
+
 pip install -r requirements.txt
-# Đặt file Excel vào cùng thư mục
 python bot.py
 ```
 
 ## 📝 Cập nhật danh sách mặt hàng
 
 Chỉ cần thay file `DAILY_ORDER_MIN_xlsx.xlsx` bằng file mới và restart bot.
+
+---
+
+## 🔒 Bảo mật
+
+- **Không bao giờ** commit token vào git. Token chỉ được đặt qua biến môi trường.
+- Dùng `ALLOWED_USER_IDS` để giới hạn ai được phép sử dụng bot.
