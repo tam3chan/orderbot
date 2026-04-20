@@ -27,6 +27,7 @@ class ExcelConfig:
     out_date_row: int = 4
     out_date_col: int = 12
     out_item_start: int = 18
+    out_item_end: int = 40
     out_stt: int = 1
     out_ma_sp: int = 2
     out_ten_hang: int = 3
@@ -87,8 +88,43 @@ class ExcelService:
         ws = wb[self._config.sheet_out]
         ws.cell(row=self._config.out_date_row, column=self._config.out_date_col, value=order_date)
 
+        # 1. Xoá các dòng thừa (từ 19 đến 24)
+        ws.delete_rows(19, 6)
+
+        item_count = len(order_items)
+        template_row = self._config.out_item_start # Dòng 18
+
+        # 2. Insert rows và copy style/công thức từ dòng 18
+        if item_count > 1:
+            ws.insert_rows(template_row + 1, item_count - 1)
+            
+            from copy import copy
+            from openpyxl.formula.translate import Translator
+            
+            for i in range(1, item_count):
+                r = template_row + i
+                for c in range(1, ws.max_column + 1):
+                    src_cell = ws.cell(row=template_row, column=c)
+                    dst_cell = ws.cell(row=r, column=c)
+                    
+                    if src_cell.has_style:
+                        dst_cell.font = copy(src_cell.font)
+                        dst_cell.border = copy(src_cell.border)
+                        dst_cell.fill = copy(src_cell.fill)
+                        dst_cell.number_format = src_cell.number_format
+                        dst_cell.protection = copy(src_cell.protection)
+                        dst_cell.alignment = copy(src_cell.alignment)
+                    
+                    if src_cell.data_type == 'f' and src_cell.value:
+                        try:
+                            dst_cell.value = Translator(src_cell.value, origin=src_cell.coordinate).translate_formula(dst_cell.coordinate)
+                        except Exception as e:
+                            logger.error(f"Formula translation error at {src_cell.coordinate}: {e}")
+                            dst_cell.value = src_cell.value
+
+        # 3. Đưa data vào các dòng
         for i, item in enumerate(order_items):
-            r = self._config.out_item_start + i
+            r = template_row + i
             ws.cell(row=r, column=self._config.out_stt, value=i + 1)
             ws.cell(row=r, column=self._config.out_ma_sp, value=item["code"])
             ws.cell(row=r, column=self._config.out_ten_hang, value=item["name"])

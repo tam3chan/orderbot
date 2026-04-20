@@ -5,7 +5,9 @@ __pycache__/
 *.xlsx
 .DS_Store
 .planning
+/.planning/*
 .claude
+.codenomad
 docs
 plans
 CLAUDE.md
