@@ -3,7 +3,7 @@ import os, sys, logging, io, functools
 from dotenv import load_dotenv
 
 import data, data.r2_storage
-from telegram import Update
+from telegram import Update, BotCommand
 from telegram.ext import (
     Application, CommandHandler, CallbackQueryHandler,
     MessageHandler, filters, ConversationHandler,
@@ -18,6 +18,7 @@ from handlers.conversation.editing import show_edit_screen, edit_item_menu, hand
 from handlers.conversation.category import category_conv, show_cats
 from handlers.conversation.confirm import confirm_yes, confirm_no, back_to_edit, change_date, quick_date, enter_custom_date, show_confirm_screen
 from handlers.conversation.template import template_conv, show_template_menu
+from handlers.conversation.nonfood_editing import nonfood_conv
 
 logging.basicConfig(format="%(asctime)s - %(levelname)s - %(message)s", level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -27,8 +28,13 @@ TOKEN = os.environ.get("BOT_TOKEN")
 if not TOKEN:
     logger.critical("BOT_TOKEN required"); sys.exit(1)
 EXCEL_PATH = os.environ.get("EXCEL_PATH", "DAILY_ORDER_MIN_xlsx.xlsx")
+NONFOOD_EXCEL_PATH = "ORDER NONFOOD MIN xlsx.xlsx"
 _raw = os.environ.get("ALLOWED_USER_IDS", "")
-ALLOWED_USER_IDS: set[int] = {int(x.strip()) for x in _raw.split(",") if x.strip()}
+try:
+    ALLOWED_USER_IDS: set[int] = {int(x.strip()) for x in _raw.split(",") if x.strip()}
+except ValueError as e:
+    logger.critical("ALLOWED_USER_IDS contains invalid integer: %s", e)
+    sys.exit(1)
 
 EXCEL_BUFFER: io.BytesIO | None = None
 
@@ -38,6 +44,89 @@ def _init_excel_buffer() -> None:
         EXCEL_BUFFER = data.r2_storage.download_excel()
     else:
         logger.info("R2 not configured, using local Excel file: %s", EXCEL_PATH)
+
+
+async def post_init(app) -> None:
+    commands = [
+        BotCommand("order", "Tạo đơn đặt hàng"),
+        BotCommand("list", "Xem danh sách mặt hàng"),
+        BotCommand("tim", "Tìm kiếm mặt hàng"),
+        BotCommand("cancel", "Huỷ thao tác hiện tại"),
+    ]
+    if app.bot_data.get("nonfood_enabled"):
+        commands.insert(1, BotCommand("order_nonfood", "Tạo đơn non-food"))
+    await app.bot.set_my_commands(commands)
+
+
+def _bootstrap_nonfood_assets(
+    service_cls: type[ExcelService] = ExcelService,
+    download_excel_fn=None,
+) -> dict[str, object]:
+    """Bootstrap non-food workbook assets without affecting food startup."""
+    if download_excel_fn is None:
+        download_excel_fn = data.r2_storage.download_excel
+
+    r2_configured = all(os.environ.get(k) for k in ("R2_ENDPOINT", "R2_ACCESS_KEY", "R2_SECRET_KEY"))
+    nonfood_key = os.environ.get("NONFOOD_R2_OBJECT_KEY")
+    nonfood_path = os.environ.get("NONFOOD_EXCEL_PATH") or NONFOOD_EXCEL_PATH
+
+    assets: dict[str, object] = {
+        "nonfood_enabled": False,
+        "nonfood_excel_buffer": None,
+        "nonfood_excel_service": None,
+        "nonfood_items": {},
+        "nonfood_categories": {},
+        "nonfood_order_service": None,
+    }
+
+    nonfood_service = None
+    nonfood_items = {}
+    nonfood_categories = {}
+
+    # Try R2 first
+    if r2_configured and nonfood_key:
+        try:
+            nonfood_buffer = download_excel_fn(object_key=nonfood_key)
+            nonfood_service = service_cls(buffer=nonfood_buffer)
+            assets["nonfood_excel_buffer"] = nonfood_buffer
+        except Exception as e:
+            nonfood_service = None
+            logger.warning("R2 download failed for non-food workbook (%s); trying local path", e)
+
+    # Fall back to local path if R2 not available or failed
+    if nonfood_service is None:
+        try:
+            nonfood_service = service_cls(local_path=nonfood_path)
+        except Exception:
+            logger.exception("Non-food workbook bootstrap failed; disabling non-food flow")
+            return assets
+
+    # Load items
+    try:
+        nonfood_items, nonfood_categories = nonfood_service.load_items_nonfood()
+    except Exception:
+        logger.exception("Non-food workbook bootstrap failed; disabling non-food flow")
+        return assets
+
+    assets["nonfood_enabled"] = True
+    assets["nonfood_excel_service"] = nonfood_service
+    assets["nonfood_items"] = nonfood_items
+    assets["nonfood_categories"] = nonfood_categories
+    assets["nonfood_order_service"] = OrderService(db=data, excel_service=nonfood_service)
+    return assets
+
+
+def _build_bot_data(excel_service: ExcelService, items: dict, categories: dict) -> dict[str, object]:
+    """Build the shared bot_data contract for food and non-food assets."""
+    bot_data: dict[str, object] = {
+        "excel_buffer": EXCEL_BUFFER,
+        "excel_service": excel_service,
+        "order_service": OrderService(db=data, excel_service=excel_service),
+        "items": items,
+        "categories": categories,
+    }
+    bot_data.update(_bootstrap_nonfood_assets())
+    return bot_data
 
 def authorized_only(func):
     @functools.wraps(func)
@@ -61,12 +150,8 @@ def main():
     excel_service = ExcelService(buffer=EXCEL_BUFFER, local_path=EXCEL_PATH)
     ITEMS, CATS = excel_service.load_items()
 
-    app = Application.builder().token(TOKEN).build()
-    app.bot_data["excel_buffer"] = EXCEL_BUFFER
-    app.bot_data["excel_service"] = excel_service
-    app.bot_data["order_service"] = OrderService(db=data, excel_service=excel_service)
-    app.bot_data["items"] = ITEMS
-    app.bot_data["categories"] = CATS
+    app = Application.builder().token(TOKEN).post_init(post_init).build()
+    app.bot_data.update(_build_bot_data(excel_service, ITEMS, CATS))
 
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("list", cmd_list))
@@ -98,6 +183,10 @@ def main():
         fallbacks=[CommandHandler("cancel", cmd_cancel)],
         allow_reentry=True,
     ))
+    # Top-level /order_nonfood command (visible in Telegram bot command menu)
+    from handlers.conversation.nonfood_editing import cmd_order_nonfood
+    app.add_handler(CommandHandler("order_nonfood", cmd_order_nonfood))
+    app.add_handler(nonfood_conv)
 
     logger.info("Bot đang chạy... (%d items loaded)", len(ITEMS))
     app.run_polling(drop_pending_updates=True)

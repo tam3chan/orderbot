@@ -20,15 +20,24 @@ async def cmd_start(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -> None:
     # MongoDB status
     mongo_status = "✅ Đã kết nối" if ping_db() else "❌ Không kết nối được"
 
+    commands_text = (
+        "/order — Tạo đơn đặt hàng\n"
+        + (
+            "/order\\_nonfood — Tạo đơn non-food\n"
+            if ctx.bot_data.get("nonfood_enabled")
+            else ""
+        )
+        + "/list — Xem danh sách mặt hàng\n"
+        + "/tim <từ khoá> — Tìm kiếm\n"
+        + "/cancel — Huỷ"
+    )
+
     await update.message.reply_text(
         f"👋 Xin chào! Tôi là *Order Bot* 🤖\n\n"
         f"🔗 *Trạng thái kết nối:*\n"
         f"  • R2 Storage: {r2_status}\n"
         f"  • MongoDB: {mongo_status}\n\n"
         f"📋 *Lệnh có sẵn:*\n"
-        "/order — Tạo đơn đặt hàng\n"
-        "/list — Xem danh sách mặt hàng\n"
-        "/tim <từ khoá> — Tìm kiếm\n"
-        "/cancel — Huỷ",
+        f"{commands_text}",
         parse_mode="Markdown",
     )
