@@ -1,0 +1,19 @@
+{
+  "version": 1,
+  "workflow": "rigorous",
+  "research": "deep",
+  "roadmap_scope": ["stabilize_existing_bot", "add_new_features", "dashboard_revival"],
+  "approval_gates": {
+    "requirements": true,
+    "roadmap": true,
+    "phase_plans": true,
+    "implementation": true
+  },
+  "validation": {
+    "run_tests_before_phase_complete": true,
+    "require_manual_uat_for_user_flows": true,
+    "prefer_code_review_for_risky_changes": true
+  },
+  "created_from": "gsd-new-project --auto",
+  "created_at": "2026-04-24"
+}
