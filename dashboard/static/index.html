@@ -1,0 +1,97 @@
+﻿<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Trang Quáº£n Trá»‹ ÄÆ¡n HÃ ng</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div id="app">
+        <!-- Login View -->
+        <div id="login-view" class="view active">
+            <div class="login-card">
+                <h1>ÄÄƒng nháº­p</h1>
+                <p>Vui lÃ²ng nháº­p mÃ£ truy cáº­p (Token) Ä‘á»ƒ tiáº¿p tá»¥c.</p>
+                <div class="form-group">
+                    <input type="password" id="token-input" placeholder="Nháº­p token cá»§a báº¡n..." autocomplete="off">
+                </div>
+                <button id="login-btn" class="btn btn-primary">XÃ¡c nháº­n</button>
+                <div id="login-error" class="error-text hidden">Token khÃ´ng há»£p lá»‡ hoáº·c lá»—i káº¿t ná»‘i.</div>
+            </div>
+        </div>
+
+        <!-- Dashboard View -->
+        <div id="dashboard-view" class="view hidden">
+            <header class="app-header">
+                <div class="header-content">
+                    <h1>Trang Quáº£n Trá»‹</h1>
+                    <div class="header-actions">
+                        <div class="status-indicator">
+                            <span id="health-dot" class="dot"></span>
+                            <span id="health-text">Äang kiá»ƒm tra...</span>
+                        </div>
+                        <button id="logout-btn" class="btn btn-text">ÄÄƒng xuáº¥t</button>
+                    </div>
+                </div>
+            </header>
+
+            <main class="dashboard-layout">
+                <aside class="sidebar">
+                    <div class="toggle-group">
+                        <button class="toggle-btn active" data-type="food">Thá»±c pháº©m</button>
+                        <button class="toggle-btn" data-type="nonfood">Phi thá»±c pháº©m</button>
+                    </div>
+
+                    <nav class="nav-menu">
+                        <button class="nav-item active" data-view="orders">ÄÆ¡n hÃ ng gáº§n Ä‘Ã¢y</button>
+                        <button class="nav-item" data-view="templates">Máº«u Ä‘Æ¡n hÃ ng</button>
+                    </nav>
+                </aside>
+
+                <div class="main-content">
+                    <!-- Orders View -->
+                    <div id="orders-panel" class="panel active">
+                        <div class="panel-header">
+                            <h2>ÄÆ¡n hÃ ng gáº§n Ä‘Ã¢y</h2>
+                            <button id="refresh-orders-btn" class="btn btn-icon" title="LÃ m má»›i">&#x21bb;</button>
+                        </div>
+
+                        <div id="orders-state-container" class="state-container">
+                            <!-- States injected via JS -->
+                        </div>
+                    </div>
+
+                    <!-- Templates View -->
+                    <div id="templates-panel" class="panel hidden">
+                        <div class="panel-header">
+                            <h2>Máº«u Ä‘Æ¡n hÃ ng</h2>
+                            <button id="refresh-templates-btn" class="btn btn-icon" title="LÃ m má»›i">&#x21bb;</button>
+                        </div>
+
+                        <div id="templates-state-container" class="state-container">
+                            <!-- States injected via JS -->
+                        </div>
+                    </div>
+                </div>
+            </main>
+        </div>
+
+        <!-- Order Detail Drawer -->
+        <div id="order-drawer" class="drawer">
+            <div class="drawer-overlay"></div>
+            <div class="drawer-content">
+                <div class="drawer-header">
+                    <h3 id="drawer-title">Chi tiáº¿t Ä‘Æ¡n hÃ ng</h3>
+                    <button class="close-drawer-btn">&times;</button>
+                </div>
+                <div class="drawer-body" id="drawer-body">
+                    <!-- Detail injected via JS -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
