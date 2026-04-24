@@ -1,0 +1,73 @@
+{
+  "active_plan": "D:\\taixuong\\order_bot\\.sisyphus\\plans\\nonfood-order-bot.md",
+  "started_at": "2026-04-21T07:04:26.264Z",
+  "session_ids": [
+    "ses_2513d9c05ffe8Sa0rhiYgt52Qv",
+    "ses_25124d482ffejvUZburWrfhLQ6",
+    "ses_25124d3caffeDSZT4GeF6N7L70",
+    "ses_250ef8797ffebsRqhd2AfxCQgG",
+    "ses_250adcdf4ffeomHW01EBHqGqss",
+    "ses_250ada535ffe9a6h4U6W1ipRWG",
+    "ses_250ad8581ffeaAJr7T0aQTGa2q",
+    "ses_250ad6366ffe6kdgdrQ642OE35"
+  ],
+  "session_origins": {
+    "ses_2513d9c05ffe8Sa0rhiYgt52Qv": "direct",
+    "ses_25124d482ffejvUZburWrfhLQ6": "appended",
+    "ses_25124d3caffeDSZT4GeF6N7L70": "appended",
+    "ses_250ef8797ffebsRqhd2AfxCQgG": "direct",
+    "ses_250adcdf4ffeomHW01EBHqGqss": "appended",
+    "ses_250ada535ffe9a6h4U6W1ipRWG": "appended",
+    "ses_250ad8581ffeaAJr7T0aQTGa2q": "appended",
+    "ses_250ad6366ffe6kdgdrQ642OE35": "appended"
+  },
+  "plan_name": "nonfood-order-bot",
+  "agent": "atlas",
+  "task_sessions": {
+    "todo:1": {
+      "task_key": "todo:1",
+      "task_label": "1",
+      "task_title": "Add non-food workbook bootstrap and bot_data contract",
+      "session_id": "ses_25124d482ffejvUZburWrfhLQ6",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-21T07:06:40.294Z"
+    },
+    "todo:2": {
+      "task_key": "todo:2",
+      "task_label": "2",
+      "task_title": "Add isolated non-food persistence API and exports",
+      "session_id": "ses_25116c070ffeICW1AOQ2gPmZeF",
+      "agent": "Sisyphus-Junior",
+      "category": "quick",
+      "updated_at": "2026-04-21T07:22:48.801Z"
+    },
+    "todo:4": {
+      "task_key": "todo:4",
+      "task_label": "4",
+      "task_title": "Implement `/order_nonfood` entry menu, recent orders, history, and template loading",
+      "session_id": "ses_25112d514ffen89GcgvCV4W7Zc",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-21T07:34:09.984Z"
+    },
+    "todo:5": {
+      "task_key": "todo:5",
+      "task_label": "5",
+      "task_title": "Implement non-food category browsing and add-item flow",
+      "session_id": "ses_25107da12ffegWpDPmk33VjEbZ",
+      "agent": "Sisyphus-Junior",
+      "category": "unspecified-high",
+      "updated_at": "2026-04-21T07:48:41.661Z"
+    },
+    "final-wave:f1": {
+      "task_key": "final-wave:f1",
+      "task_label": "F1",
+      "task_title": "Plan Compliance Audit — oracle",
+      "session_id": "ses_250ad6366ffe6kdgdrQ642OE35",
+      "agent": "Sisyphus-Junior",
+      "category": "deep",
+      "updated_at": "2026-04-21T09:19:13.276Z"
+    }
+  }
+}
