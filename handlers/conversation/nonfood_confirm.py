@@ -16,8 +16,8 @@ def _fmt_date(d: date) -> str:
     return d.strftime("%d/%m/%Y")
 
 
-def _date_label(d: date) -> str:
-    delta = (d - date.today()).days
+def _date_label(d: date, base_date: date | None = None) -> str:
+    delta = (d - (base_date or date.today())).days
     suf = {-1: " (hôm qua)", 0: " (hôm nay)", 1: " (ngày mai)"}.get(delta, "")
     return f"{_fmt_date(d)}{suf}"
 
@@ -28,13 +28,14 @@ async def show_nonfood_confirm_screen(update: Update, ctx: ContextTypes.DEFAULT_
 
     nonfood_order = cast(dict, ctx.user_data.get("nonfood_order", {}))
     order_date = ctx.user_data.get("nonfood_order_date", date.today())
+    label_base_date = ctx.user_data.get("nonfood_date_label_base", date.today())
 
     lines = ["📋 *Xác nhận đơn non-food:*\n"]
     for item in nonfood_order.values():
         lines.append(
             f"  • {item['name']}: *{_fmt_qty(item['qty'])} {item['unit']}* [{item.get('source', '')}]"
         )
-    lines.append(f"\n📅 *Ngày:* {_date_label(order_date)}\n_Tổng: {len(nonfood_order)} mặt hàng_")
+    lines.append(f"\n📅 *Ngày:* {_date_label(order_date, label_base_date)}\n_Tổng: {len(nonfood_order)} mặt hàng_")
 
     btns = [
         [InlineKeyboardButton("✅ Xác nhận đặt hàng", callback_data="nfeq:confirm")],
@@ -91,7 +92,9 @@ async def show_nonfood_date_menu(update: Update, ctx: ContextTypes.DEFAULT_TYPE)
     q = update.callback_query
     await q.answer()
 
-    today = date.today()
+    user_data = cast(dict[str, Any], ctx.user_data)
+    today = user_data.get("nonfood_order_date") or date.today()
+    user_data["nonfood_date_label_base"] = today
     tomorrow = today + timedelta(days=1)
     day_after = today + timedelta(days=2)
 

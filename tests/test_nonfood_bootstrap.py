@@ -51,6 +51,7 @@ class _FilterToken:
 def _import_bot():
     telegram = types.ModuleType("telegram")
     telegram.Update = type("Update", (), {})
+    telegram.BotCommand = type("BotCommand", (), {"__init__": lambda self, *args, **kwargs: None})
 
     class InlineKeyboardButton:
         def __init__(self, *args, **kwargs):
@@ -68,6 +69,9 @@ def _import_bot():
 
     class _Builder:
         def token(self, *_args, **_kwargs):
+            return self
+
+        def post_init(self, *_args, **_kwargs):
             return self
 
         def build(self):

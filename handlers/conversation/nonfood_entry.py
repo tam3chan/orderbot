@@ -116,7 +116,7 @@ async def handle_nonfood_entry(update: Update, ctx: ContextTypes.DEFAULT_TYPE) -
 
     if value == "nfe:new":
         user_data["nonfood_order"] = {}
-        return await show_cats(update, ctx)
+        return await _show_nonfood_edit_screen(update, ctx)
 
     if value == "nfe:recent":
         recent_dates = get_recent_nonfood_dates(1)

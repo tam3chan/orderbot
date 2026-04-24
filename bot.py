@@ -38,6 +38,20 @@ except ValueError as e:
 
 EXCEL_BUFFER: io.BytesIO | None = None
 
+
+def fmt_qty(q: float) -> str:
+    """Format quantity for legacy utility tests and display helpers."""
+    return str(int(q)) if q == int(q) else str(q)
+
+
+def get_categories(items: dict) -> dict:
+    """Group loaded item dictionaries by their category key."""
+    categories: dict = {}
+    for item in items.values():
+        categories.setdefault(item["cat"], []).append(item)
+    return categories
+
+
 def _init_excel_buffer() -> None:
     global EXCEL_BUFFER
     if os.environ.get("R2_ENDPOINT") and os.environ.get("R2_ACCESS_KEY"):
