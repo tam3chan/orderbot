@@ -1,8 +1,10 @@
 """MongoDB data layer for Order Bot.
 
 Collections:
-  - orders    : lưu đơn hàng theo ngày
-  - templates : lưu đơn mẫu
+  - orders           : lưu đơn hàng theo ngày
+  - templates        : lưu đơn mẫu
+  - nonfood_orders    : lưu đơn non-food theo ngày
+  - nonfood_templates : lưu đơn mẫu non-food
 """
 from __future__ import annotations
 
@@ -66,6 +68,16 @@ def _templates() -> Collection:
     return _get_db()["templates"]
 
 
+def _nonfood_orders() -> Collection:
+    col = _get_db()["nonfood_orders"]
+    col.create_index("date", unique=True)
+    return col
+
+
+def _nonfood_templates() -> Collection:
+    return _get_db()["nonfood_templates"]
+
+
 # ─── Orders ────────────────────────────────────────────────────────────
 def save_order(order_date: date, items: list[dict]) -> None:
     """Lưu/cập nhật đơn hàng (upsert theo ngày)."""
@@ -121,3 +133,60 @@ def get_template(name: str) -> list[dict] | None:
 def list_templates() -> list[dict]:
     """Trả về list {"_id": ..., "name": ...} của tất cả templates."""
     return list(_templates().find({}, {"_id": 1, "name": 1}))
+
+
+# ─── Non-food Orders ────────────────────────────────────────────────────
+def save_nonfood_order(order_date: date, items: list[dict]) -> None:
+    """Lưu/cập nhật đơn non-food (upsert theo ngày)."""
+    _nonfood_orders().update_one(
+        {"date": order_date.isoformat()},
+        {"$set": {
+            "date": order_date.isoformat(),
+            "items": items,
+            "updated_at": datetime.utcnow().isoformat(),
+        }},
+        upsert=True,
+    )
+
+
+def get_nonfood_order(order_date: date) -> list[dict] | None:
+    """Trả về danh sách items non-food của ngày đó, hoặc None nếu chưa có."""
+    doc = _nonfood_orders().find_one({"date": order_date.isoformat()})
+    return doc["items"] if doc else None
+
+
+def get_recent_nonfood_dates(n: int = 7) -> list[str]:
+    """Trả về list ngày ISO (YYYY-MM-DD) của n đơn non-food gần nhất."""
+    cursor = _nonfood_orders().find({}, {"date": 1, "_id": 0}).sort("date", DESCENDING).limit(n)
+    return [doc["date"] for doc in cursor]
+
+
+def get_nonfood_order_by_iso(iso_str: str) -> list[dict] | None:
+    """Tìm đơn non-food theo chuỗi ngày ISO trực tiếp (YYYY-MM-DD)."""
+    doc = _nonfood_orders().find_one({"date": iso_str})
+    return doc["items"] if doc else None
+
+
+# ─── Non-food Templates ─────────────────────────────────────────────────
+def save_nonfood_template(name: str, items: list[dict]) -> None:
+    """Lưu/cập nhật template non-food."""
+    _nonfood_templates().update_one(
+        {"_id": name},
+        {"$set": {
+            "_id": name,
+            "name": name,
+            "items": items,
+            "updated_at": datetime.utcnow().isoformat(),
+        }},
+        upsert=True,
+    )
+
+
+def get_nonfood_template(name: str) -> list[dict] | None:
+    doc = _nonfood_templates().find_one({"_id": name})
+    return doc["items"] if doc else None
+
+
+def list_nonfood_templates() -> list[dict]:
+    """Trả về list {"_id": ..., "name": ...} của tất cả templates non-food."""
+    return list(_nonfood_templates().find({}, {"_id": 1, "name": 1}))

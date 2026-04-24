@@ -21,10 +21,10 @@ def _r2_client():
     )
 
 
-def download_excel() -> io.BytesIO:
+def download_excel(object_key: str | None = None) -> io.BytesIO:
     """Tải file Excel template từ R2 về RAM. Gọi một lần lúc khởi động."""
     bucket = os.environ.get("R2_BUCKET", "orderbot")
-    key = os.environ.get("R2_OBJECT_KEY", "DAILY_ORDER_MIN_xlsx.xlsx")
+    key = object_key or os.environ.get("R2_OBJECT_KEY", "DAILY_ORDER_MIN_xlsx.xlsx")
     logger.info("Downloading Excel template from R2: s3://%s/%s", bucket, key)
     buf = io.BytesIO()
     _r2_client().download_fileobj(bucket, key, buf)

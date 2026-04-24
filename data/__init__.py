@@ -11,6 +11,13 @@ from data.mongodb_repository import (
     save_template,
     get_template,
     list_templates,
+    save_nonfood_order,
+    get_nonfood_order,
+    get_recent_nonfood_dates,
+    get_nonfood_order_by_iso,
+    save_nonfood_template,
+    get_nonfood_template,
+    list_nonfood_templates,
 )
 from data.r2_storage import download_excel
 
@@ -26,5 +33,12 @@ __all__ = [
     "save_template",
     "get_template",
     "list_templates",
+    "save_nonfood_order",
+    "get_nonfood_order",
+    "get_recent_nonfood_dates",
+    "get_nonfood_order_by_iso",
+    "save_nonfood_template",
+    "get_nonfood_template",
+    "list_nonfood_templates",
     "download_excel",
 ]

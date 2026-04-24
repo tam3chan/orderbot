@@ -35,6 +35,13 @@ class ExcelConfig:
     out_dvt: int = 9
     out_ngay_giao: int = 10
     out_ncc: int = 15
+    # Non-food output row/column positions
+    nonfood_out_date_row: int = 13
+    nonfood_out_date_col: int = 2
+    nonfood_out_item_start: int = 16
+    nonfood_out_item_end: int = 26
+    nonfood_out_code_col: int = 2
+    nonfood_out_qty_col: int = 7
 
 
 class ExcelService:
@@ -143,3 +150,90 @@ class ExcelService:
             self._buffer.seek(0)
             return load_workbook(self._buffer, read_only=read_only, data_only=data_only)
         return load_workbook(self._local_path, read_only=read_only, data_only=data_only)
+
+    # ─── Non-food methods ───────────────────────────────────────────────────────
+
+    def load_items_nonfood(self) -> tuple[dict, dict]:
+        """Load and parse non-food items from CCDC and VTTH sheets.
+
+        Returns (items, categories) where each item includes a `source` field
+        so handlers can render [CCDC] / [VTTH] badges on item choices.
+        """
+        wb = self._get_workbook(read_only=True, data_only=True)
+
+        items: dict = {}
+        for sheet_name in ("CCDC", "VTTH"):
+            if sheet_name not in wb.sheetnames:
+                logger.warning("Non-food sheet '%s' not found in workbook", sheet_name)
+                continue
+            ws = wb[sheet_name]
+            # Assuming row 1 is header, data starts at row 2
+            # Expected columns: A=stt, B=code, C=name (or similar - adjust as needed)
+            # A more robust approach is to detect headers first
+            for row in ws.iter_rows(min_row=2, values_only=True):  # Start at row 2 (row 1 is header)
+                # Skip completely empty rows
+                if not any(cell is not None for cell in row):
+                    continue
+                # CCDC sheet columns: A=STT, B=CAT, C=MÃ, D=TÊN, E=ĐVT
+                # VTTH sheet expected to have same structure
+                cat = row[1] if len(row) > 1 else None  # B = CAT
+                code = row[2] if len(row) > 2 else None  # C = MÃ
+                name = row[3] if len(row) > 3 else None  # D = TÊN
+                unit = row[4] if len(row) > 4 else None  # E = ĐVT
+                if code and name and str(code).strip() and str(name).strip():
+                    code_str = str(code).strip()
+                    items[code_str] = {
+                        "code": code_str,
+                        "name": str(name).strip(),
+                        "unit": str(unit).strip() if unit else "cai",
+                        "cat": str(cat).strip() if cat else "Khác",
+                        "source": sheet_name,
+                    }
+        wb.close()
+
+        categories: dict = {}
+        for v in items.values():
+            categories.setdefault(v["cat"], []).append(v)
+
+        logger.info("Loaded %d non-food items from CCDC+VTTH", len(items))
+        return items, categories
+
+    def build_order_excel_nonfood(self, order_items: list, order_date: date) -> io.BytesIO:
+        """Generate non-food order Excel.
+
+        Writes product code → column B and quantity → column G.
+        All other columns (C, E, H, K) contain VLOOKUP formulas and are preserved.
+        Template rows 16-26 are preseeded in the source workbook.
+        """
+        wb = self._get_workbook()
+        sheet_name = self._config.sheet_out
+        if sheet_name not in wb.sheetnames:
+            raise ValueError(f"Sheet '{sheet_name}' not found in non-food workbook")
+
+        ws = wb[sheet_name]
+
+        # Write order date
+        ws.cell(row=self._config.nonfood_out_date_row, column=self._config.nonfood_out_date_col, value=order_date)
+
+        # Clear only the cells we are about to write (cols B and G) for template rows
+        for r in range(self._config.nonfood_out_item_start, self._config.nonfood_out_item_end + 1):
+            ws.cell(row=r, column=self._config.nonfood_out_code_col, value=None)
+            ws.cell(row=r, column=self._config.nonfood_out_qty_col, value=None)
+
+        # Validate item count against template capacity
+        max_items = self._config.nonfood_out_item_end - self._config.nonfood_out_item_start + 1
+        if len(order_items) > max_items:
+            logger.warning("Order has %d items but template only supports %d; extras will be dropped", len(order_items), max_items)
+
+        # Write items starting at template row
+        for i, item in enumerate(order_items):
+            r = self._config.nonfood_out_item_start + i
+            if r > self._config.nonfood_out_item_end:
+                break  # Don't overflow template rows
+            ws.cell(row=r, column=self._config.nonfood_out_code_col, value=item["code"])
+            ws.cell(row=r, column=self._config.nonfood_out_qty_col, value=item["qty"])
+
+        buf = io.BytesIO()
+        wb.save(buf)
+        buf.seek(0)
+        return buf
